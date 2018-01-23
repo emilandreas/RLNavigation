@@ -5,19 +5,20 @@ import numpy as np
 import pandas
 import Simulator as s
 from PIL import Image
-import xbox
 sys.path.append('./vrep_lib')
 from vrep_lib import vrep
 import robot_control
 
+PORT = 19997
+
 class Simulator:
     clientID = -1
     handles = {}
-    robo = robot_control.Pioneer_robo_control
     def __init__(self):
+        global PORT
         #Init connection to V-REP
         vrep.simxFinish(-1)
-        self.clientID=vrep.simxStart('127.0.0.1',19999,True,True,5000,5) # Connect to V-REP
+        self.clientID=vrep.simxStart('127.0.0.1',PORT,True,True,5000,5) # Connect to V-REP
         if self.clientID!=-1:
             print ('Connected to remote API server')
         else:
@@ -90,11 +91,111 @@ class Simulator:
 
 
 
+from approxeng.input.selectbinder import ControllerResource
+from time import sleep
+
+# last_presses = None
+#
+# # Loop forever
+# while True:
+#     try:
+#         with ControllerResource() as joystick:
+#             while joystick.connected:
+#                 # Check for presses since the last time we checked
+#                 joystick.check_presses()
+#
+#
+#                 if joystick.has_presses:
+#                     last_presses = joystick.presses
+#
+#                 # Print most recent presses set
+#                 screen.addstr(0, 0, 'last presses:')
+#                 if last_presses is not None:
+#                     for button_name in last_presses:
+#                         green(' {}'.format(button_name))
+#
+#                 # Print axis values
+#                 screen.addstr(1, 0, 'axes:')
+#                 for axis_name in joystick.axes.names:
+#                     screen.addstr(' {}='.format(axis_name))
+#                     axis_value = joystick[axis_name]
+#                     if axis_value > 0:
+#                         green('{:.2f}'.format(axis_value))
+#                     elif axis_value < 0:
+#                         red('{:.2f}'.format(axis_value))
+#                     else:
+#                         yellow('{:.2f}'.format(axis_value))
+#
+#
+#     except IOError:
+#         sleep(1.0)
 
 
-def xbox_controller_steering(sim)
-    joy = xbox.Joystick()
-    while(True):
-        vel = joy.leftY()
-        steering = joy.leftX()
-        sim.robo.control
+
+def xbox_controller_steering(sim):
+    with ControllerResource() as joystick:
+        while joystick.connected:
+            vel = joystick['ly']
+            steering = joystick['lx']
+            sim.robo.control_robo(vel, steering)
+            time.sleep(0.01)
+    # except IOError:
+    #     sys.exit("Something went wrong with the xbox controller")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

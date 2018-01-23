@@ -1,7 +1,6 @@
 import numpy as np
 from math import pi
 
-deg2rad = pi/180
 
 def get_angle_diff(a, b):
     ajusted_a = (a + 4*pi) % (2*pi)

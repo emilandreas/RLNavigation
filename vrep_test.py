@@ -12,7 +12,6 @@ from vrep_lib import vrep
 
 
 
-
 #Init connection to V-REP
 s = Simulator()
 
@@ -37,6 +36,14 @@ time.sleep(3)
 s.robo.control_robo(1,0)
 time.sleep(3)
 
+vrep.simxPauseSimulation(s.clientID, vrep.simx_opmode_oneshot)
+time.sleep(3)
+vrep.simxStartSimulation(s.clientID, vrep.simx_opmode_oneshot)
+time.sleep(3)
+vrep.simxStopSimulation(s.clientID, vrep.simx_opmode_oneshot)
+time.sleep(3)
+vrep.simxStartSimulation(s.clientID, vrep.simx_opmode_oneshot)
+
 errorCode, euler_angles = vrep.simxGetObjectOrientation(s.clientID, objectHandle=s.handles["robot_handle"], relativeToObjectHandle=-1, operationMode=vrep.simx_opmode_streaming)
 errorCode, robo_pos = vrep.simxGetObjectPosition(s.clientID, objectHandle=s.handles["robot_handle"], relativeToObjectHandle=-1, operationMode=vrep.simx_opmode_streaming)
 time.sleep(0.5)
@@ -45,7 +52,7 @@ while(errorCode==0):
 
     errorCode, euler_angles = vrep.simxGetObjectOrientation(s.clientID, objectHandle=s.handles["robot_handle"], relativeToObjectHandle=-1, operationMode=vrep.simx_opmode_buffer)
     errorCode, robo_pos = vrep.simxGetObjectPosition(s.clientID, objectHandle=s.handles["robot_handle"], relativeToObjectHandle=-1, operationMode=vrep.simx_opmode_buffer)
-    angle_a = helpers.deg2rad*path_array[10, 5]
+    angle_a = np.deg2rad*path_array[10, 5]
     angle_b = euler_angles[2]
     print("angles: {},{}, diff: {}, robo_pos: {}".format(angle_a, angle_b, helpers.get_angle_diff(angle_a, angle_b),0))
     # print(euler_angles)
