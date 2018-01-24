@@ -18,17 +18,20 @@ import gym
 import os
 import shutil
 import matplotlib.pyplot as plt
+import time
+from PathFollowEnv import PathFollowEnv
 import FalconLander
 
 
 # GAME = 'Pendulum-v0'
 # GAME = 'LunarLanderContinuous-v2'
-GAME = 'FalconLanderContinuous-v0'
+# GAME = 'FalconLanderContinuous-v0'
+GAME = 'PathFollow'
 OUTPUT_GRAPH = True
 LOG_DIR = './log'
-N_WORKERS = multiprocessing.cpu_count()
-MAX_EP_STEP = 200
-MAX_GLOBAL_EP = 2000
+N_WORKERS =  4 # multiprocessing.cpu_count()
+MAX_EP_STEP = 300
+MAX_GLOBAL_EP = 200
 GLOBAL_NET_SCOPE = 'Global_Net'
 UPDATE_GLOBAL_ITER = 10
 GAMMA = 0.9
@@ -40,7 +43,11 @@ GLOBAL_RUNNING_R = []
 GLOBAL_EP = 0
 RENDER = False
 
-env = gym.make(GAME)
+
+if GAME == "PathFollow":
+    env = PathFollowEnv(headless=True)
+else:
+    env = gym.make(GAME)
 
 N_S = env.observation_space.shape[0]
 N_A = env.action_space.shape[0]
@@ -95,15 +102,15 @@ class ACNet(object):
     def _build_net(self, scope):
         w_init = tf.random_normal_initializer(0., .1)
         with tf.variable_scope('actor'):
-            l_a = tf.layers.dense(self.s, 800, tf.nn.relu6, kernel_initializer=w_init, name='la')
+            l_a = tf.layers.dense(self.s, 400, tf.nn.relu6, kernel_initializer=w_init, name='la')
             l_a = tf.layers.dropout(l_a, rate=0.5)
-            l_a = tf.layers.dense(l_a, 200, tf.nn.relu6, kernel_initializer=w_init, name='la2')
+            l_a = tf.layers.dense(l_a, 400, tf.nn.relu6, kernel_initializer=w_init, name='la2')
             mu = tf.layers.dense(l_a, N_A, tf.nn.tanh, kernel_initializer=w_init, name='mu')
             sigma = tf.layers.dense(l_a, N_A, tf.nn.softplus, kernel_initializer=w_init, name='sigma')
         with tf.variable_scope('critic'):
-            l_c = tf.layers.dense(self.s, 400, tf.nn.relu6, kernel_initializer=w_init, name='lc')
+            l_c = tf.layers.dense(self.s, 200, tf.nn.relu6, kernel_initializer=w_init, name='lc')
             l_c = tf.layers.dropout(l_c, rate=0.5)
-            l_c = tf.layers.dense(l_c, 400, tf.nn.relu6, kernel_initializer=w_init, name='lc2')
+            l_c = tf.layers.dense(l_c, 200, tf.nn.relu6, kernel_initializer=w_init, name='lc2')
             v = tf.layers.dense(l_c, 1, kernel_initializer=w_init, name='v')  # state value
         a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope + '/actor')
         c_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope + '/critic')
@@ -122,7 +129,10 @@ class ACNet(object):
 
 class Worker(object):
     def __init__(self, name, globalAC):
-        self.env = gym.make(GAME).unwrapped
+        if GAME == "PathFollow":
+            self.env = PathFollowEnv(headless=True)
+        else:
+            self.env = gym.make(GAME).unwrapped
         self.env._max_episode_steps = MAX_EP_STEP
         self.name = name
         self.AC = ACNet(name, globalAC)
@@ -137,7 +147,7 @@ class Worker(object):
             for ep_t in range(MAX_EP_STEP):
                 if self.name == 'W_0':
                     if RENDER:
-                        self.env.render()
+                       self.env.render()
                 a = self.AC.choose_action(s)
                 s_, r, done, info = self.env.step(a)
                 if self.name == 'W_0':
@@ -174,7 +184,7 @@ class Worker(object):
                 s = s_
                 if GLOBAL_RUNNING_R:
                     if GLOBAL_RUNNING_R[-1] > -50:
-                        RENDER = True
+                        RENDER = False
                 total_step += 1
                 if done:
                     if len(GLOBAL_RUNNING_R) == 0:  # record running episode reward
@@ -206,6 +216,7 @@ if __name__ == "__main__":
 
     COORD = tf.train.Coordinator()
     SESS.run(tf.global_variables_initializer())
+    saver = tf.train.Saver()
 
     if OUTPUT_GRAPH:
         if os.path.exists(LOG_DIR):
@@ -219,6 +230,9 @@ if __name__ == "__main__":
         t.start()
         worker_threads.append(t)
     COORD.join(worker_threads)
+
+    save_path = saver.save(SESS, "./models/nav_model_{}.ckpt".format(time.strftime("%d_%m")))
+    print("Model saved in file: %s" % save_path)
 
     plt.plot(np.arange(len(GLOBAL_RUNNING_R)), GLOBAL_RUNNING_R)
     plt.xlabel('step')

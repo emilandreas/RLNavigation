@@ -5,8 +5,6 @@ from math import pi
 def get_angle_diff(a, b):
     ajusted_a = (a + 4*pi) % (2*pi)
     ajusted_b = (b + 4*pi) % (2*pi)
-    print()
-    print("ajusted_a: {}, ajusted_b: {}".format(ajusted_a, ajusted_b))
     if (abs(ajusted_a - ajusted_b) < abs(a - b)):
         return ajusted_a - ajusted_b
     else:

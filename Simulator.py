@@ -26,15 +26,15 @@ class Simulator:
             sys.exit(-1)
 
         # Init handles
-        errorCode, left_motor_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_leftMotor', vrep.simx_opmode_oneshot_wait)
+        errorCode, motor_handle = vrep.simxGetObjectHandle(self.clientID, 'motor_joint#0', vrep.simx_opmode_oneshot_wait)
         if errorCode != -1:
-            print("left:Error code: {}".format(errorCode))
+            print("motor:Error code: {}".format(errorCode))
 
-        errorCode, robot_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx', vrep.simx_opmode_oneshot_wait)
+        errorCode, car_handle = vrep.simxGetObjectHandle(self.clientID, 'Manta#0', vrep.simx_opmode_oneshot_wait)
         if errorCode != -1:
             print("robot:Error code: {}".format(errorCode))
 
-        errorCode, right_motor_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_rightMotor', vrep.simx_opmode_oneshot_wait)
+        errorCode, steering_handle = vrep.simxGetObjectHandle(self.clientID, 'steer_joint#0', vrep.simx_opmode_oneshot_wait)
         if errorCode != -1:
             print("right:Error code: {}".format(errorCode))
 
@@ -42,18 +42,44 @@ class Simulator:
         if errorCode != -1:
             print("cam:Error code: {}".format(errorCode))
 
-        errorCode, cam_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_rightMotor', vrep.simx_opmode_oneshot_wait)
-        if errorCode != -1:
-            print("cam:Error code: {}".format(errorCode))
-
-        self.handles.update({"left_motor_handle": left_motor_handle,
-                        "right_motor_handle": right_motor_handle,
-                        "robot_handle": robot_handle,
-                        "cam_handle":cam_handle
-                        })
+        self.handles.update({"motor": motor_handle,
+                             "steering": steering_handle,
+                             "car_handle": car_handle,
+                             "cam_handle":cam_handle
+                             })
 
         self.robo = robot_control.Pioneer_robo_control(self.clientID,self.handles["robot_handle"],
-                                                  self.handles["right_motor_handle"], self.handles["left_motor_handle"])
+                                                       self.handles["right_motor_handle"], self.handles["left_motor_handle"])
+
+        # # Init handles
+        # errorCode, left_motor_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_leftMotor', vrep.simx_opmode_oneshot_wait)
+        # if errorCode != -1:
+        #     print("left:Error code: {}".format(errorCode))
+        #
+        # errorCode, robot_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx', vrep.simx_opmode_oneshot_wait)
+        # if errorCode != -1:
+        #     print("robot:Error code: {}".format(errorCode))
+        #
+        # errorCode, right_motor_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_rightMotor', vrep.simx_opmode_oneshot_wait)
+        # if errorCode != -1:
+        #     print("right:Error code: {}".format(errorCode))
+        #
+        # errorCode, cam_handle = vrep.simxGetObjectHandle(self.clientID, 'Cam1', vrep.simx_opmode_oneshot_wait)
+        # if errorCode != -1:
+        #     print("cam:Error code: {}".format(errorCode))
+        #
+        # errorCode, cam_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_rightMotor', vrep.simx_opmode_oneshot_wait)
+        # if errorCode != -1:
+        #     print("cam:Error code: {}".format(errorCode))
+        #
+        # self.handles.update({"left_motor_handle": left_motor_handle,
+        #                 "right_motor_handle": right_motor_handle,
+        #                 "robot_handle": robot_handle,
+        #                 "cam_handle":cam_handle
+        #                 })
+        #
+        # self.robo = robot_control.Pioneer_robo_control(self.clientID,self.handles["robot_handle"],
+        #                                           self.handles["right_motor_handle"], self.handles["left_motor_handle"])
 
 
     def init_video_stream(self):
@@ -135,6 +161,7 @@ from time import sleep
 def xbox_controller_steering(sim):
     with ControllerResource() as joystick:
         while joystick.connected:
+
             vel = joystick['ly']
             steering = joystick['lx']
             sim.robo.control_robo(vel, steering)

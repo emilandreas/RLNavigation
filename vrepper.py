@@ -173,8 +173,8 @@ class vrepper():
                 '127.0.0.1', self.port_num,
                 waitUntilConnected=True,
                 doNotReconnectOnceDisconnected=True,
-                timeOutInMs=1000,
-                commThreadCycleInMs=0)  # Connect to V-REP
+                timeOutInMs=10000,
+                commThreadCycleInMs=20)  # Connect to V-REP
 
             if self.cid != -1:
                 print ('(vrepper)Connected to remote API server!')
@@ -388,7 +388,7 @@ class vrepobject():
             self.handle,
             v,
             blocking))
-
+            # oneshot))
     def set_force(self, f):
         self._check_joint()
         return check_ret(self.env.simxSetJointForce(
