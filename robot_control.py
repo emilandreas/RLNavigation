@@ -29,3 +29,21 @@ class Pioneer_robo_control:
 
 
 
+class Manta_robo_control:
+    def __init__(self, clientID, robo_handle, steering_handle, motor_handle):
+        self.robo_handle = robo_handle
+        self.steering_handle = steering_handle
+        self.motor_handle = motor_handle
+        self.clientID = clientID
+        self.max_steering_angle = 0.5235987
+        self.max_motor_torque = 60
+
+    def control_robo(self, velocity, steering):
+        self.set_steering(-steering*self.max_steering_angle)
+        self.set_motor_speed(velocity*self.max_motor_torque)
+
+    def set_steering(self, val):
+        errorCode = vrep.simxSetJointTargetPosition(self.clientID, self.steering_handle, val, vrep.simx_opmode_streaming)
+
+    def set_motor_speed(self, val):
+        errorCode = vrep.simxSetJointTargetVelocity(self.clientID, self.motor_handle, val, vrep.simx_opmode_streaming)

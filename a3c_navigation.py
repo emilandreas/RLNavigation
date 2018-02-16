@@ -29,19 +29,20 @@ import FalconLander
 GAME = 'PathFollow'
 OUTPUT_GRAPH = True
 LOG_DIR = './log'
-N_WORKERS =  4 # multiprocessing.cpu_count()
+N_WORKERS = 3 # multiprocessing.cpu_count()
 MAX_EP_STEP = 300
-MAX_GLOBAL_EP = 200
+MAX_GLOBAL_EP = 4000
 GLOBAL_NET_SCOPE = 'Global_Net'
 UPDATE_GLOBAL_ITER = 10
-GAMMA = 0.9
-# ENTROPY_BETA = 0.01
-ENTROPY_BETA = 0.1
+GAMMA = 0.95
+ENTROPY_BETA = 0.01
+# ENTROPY_BETA = 0.1
 LR_A = 0.0001    # learning rate for actor
 LR_C = 0.001    # learning rate for critic
 GLOBAL_RUNNING_R = []
 GLOBAL_EP = 0
 RENDER = False
+USE_XBOX = False
 
 
 if GAME == "PathFollow":
@@ -128,9 +129,10 @@ class ACNet(object):
 
 
 class Worker(object):
+    global RENDER, USE_XBOX
     def __init__(self, name, globalAC):
         if GAME == "PathFollow":
-            self.env = PathFollowEnv(headless=True)
+            self.env = PathFollowEnv(headless= not RENDER, use_xbox=USE_XBOX)
         else:
             self.env = gym.make(GAME).unwrapped
         self.env._max_episode_steps = MAX_EP_STEP
@@ -145,15 +147,14 @@ class Worker(object):
             s = self.env.reset()
             ep_r = 0
             for ep_t in range(MAX_EP_STEP):
-                if self.name == 'W_0':
-                    if RENDER:
-                       self.env.render()
                 a = self.AC.choose_action(s)
                 s_, r, done, info = self.env.step(a)
                 if self.name == 'W_0':
-                    if RENDER:
-                        print(s_)
-                done = True if ep_t == MAX_EP_STEP - 1 else False
+                    # if RENDER:
+                    print("\tState: {}".format(s_))
+                    print("\tReward: {}".format(r))
+                if not done:
+                    done = True if ep_t == MAX_EP_STEP - 1 else False
 
                 ep_r += r
                 buffer_s.append(s)
@@ -224,12 +225,15 @@ if __name__ == "__main__":
         tf.summary.FileWriter(LOG_DIR, SESS.graph)
 
     worker_threads = []
-    for worker in workers:
-        job = lambda: worker.work()
-        t = threading.Thread(target=job)
-        t.start()
-        worker_threads.append(t)
-    COORD.join(worker_threads)
+    try:
+        for worker in workers:
+            job = lambda: worker.work()
+            t = threading.Thread(target=job)
+            t.start()
+            worker_threads.append(t)
+        COORD.join(worker_threads)
+    except KeyboardInterrupt:
+        pass
 
     save_path = saver.save(SESS, "./models/nav_model_{}.ckpt".format(time.strftime("%d_%m")))
     print("Model saved in file: %s" % save_path)

@@ -48,8 +48,8 @@ class Simulator:
                              "cam_handle":cam_handle
                              })
 
-        self.robo = robot_control.Pioneer_robo_control(self.clientID,self.handles["robot_handle"],
-                                                       self.handles["right_motor_handle"], self.handles["left_motor_handle"])
+        self.robo = robot_control.Manta_robo_control(self.clientID,self.handles["car_handle"],
+                                                       self.handles["steering"], self.handles["motor"])
 
         # # Init handles
         # errorCode, left_motor_handle = vrep.simxGetObjectHandle(self.clientID, 'Pioneer_p3dx_leftMotor', vrep.simx_opmode_oneshot_wait)
