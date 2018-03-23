@@ -9,9 +9,17 @@ from gym import spaces
 from approxeng.input.selectbinder import ControllerResource
 from math import pi
 
+
 # from gym.utils import colorize, seeding
-VEHICLE_NAME = "Pioneer_p3dx"
+# VEHICLE_NAME = "Pioneer_p3dx"
 VEHICLE_NAME = "Manta#0"
+
+# PATHS_PATH = ["vrep_paths/pathStraightLongXup.csv", "vrep_paths/pathCurveLeft.csv", "vrep_paths/pathCurveRight.csv", "vrep_paths/pathSharpTurns.csv"]
+# PATHS_PATH = ["vrep_paths/pathCurveLeft.csv"]
+PATHS_PATH = ["vrep_paths/pathRaceTrack.csv"]
+
+
+SCENE_PATH = "/vrep_scenes/path_follow_manta_multipath.ttt"
 
 if VEHICLE_NAME == "Pioneer_p3dx":
     R_MOTOR_NAME = "Pioneer_p3dx_rightMotor"
@@ -22,10 +30,10 @@ elif VEHICLE_NAME == "Manta#0":
     MOTOR_NAME = "motor_joint#0"
     STEERING_NAME = "steer_joint#0"
 
-PATH_PATH = "./pathStraight.csv"
 
 class PathFollowEnv(gym.Env):
     def __init__(self,headless=False, use_xbox=False, max_step=200):
+        self.agent_positions = []
         if VEHICLE_NAME == "Pioneer_p3dx":
             global VEHICLE_NAME, R_MOTOR_NAME, L_MOTOR_NAME, R_WHEEL_NAME, L_WHEEL_NAME
         elif VEHICLE_NAME == "Manta#0":
@@ -34,7 +42,7 @@ class PathFollowEnv(gym.Env):
         self.venv = venv = vrepper(headless=headless)
         venv.start()
         venv.load_scene(
-            os.getcwd() + '/vrep_scenes/path_follow_manta.ttt')
+            os.getcwd() + SCENE_PATH)
 
         if VEHICLE_NAME == "Pioneer_p3dx":
             self.car = venv.get_object_by_name(VEHICLE_NAME)
@@ -43,14 +51,24 @@ class PathFollowEnv(gym.Env):
             self.r_wheel = venv.get_object_by_name(R_WHEEL_NAME)
             self.l_wheel = venv.get_object_by_name(L_WHEEL_NAME)
         elif VEHICLE_NAME == "Manta#0":
+            self.veichle_object = venv.get_object_by_name(VEHICLE_NAME)
             self.car = venv.get_object_by_name("body_dummy#0")
             self.motor = venv.get_object_by_name(MOTOR_NAME)
             self.steering = venv.get_object_by_name(STEERING_NAME)
 
         self.end_point = venv.get_object_by_name('End')
-        self.path = self._load_path()
-        self.n_path_elements = self.path.shape[0]
+        self.paths = self._load_path()
+        self.n_paths = len(self.paths)
+        self.current_path = np.random.randint(0, self.n_paths)
+        self.path = self.paths[self.current_path]
+        print("Current_path: {}".format(self.current_path))
+        self.n_path_elements = np.zeros(self.n_paths)
+        for i in range(self.n_paths):
+            self.n_path_elements[i] = self.paths[i].shape[0]
+
         self.path_progress = 0
+
+
 
         print('(PathFollowEnv) initialized')
 
@@ -66,31 +84,41 @@ class PathFollowEnv(gym.Env):
             self.joystick = ControllerResource()
 
     def _load_path(self):
-        global PATH_PATH
-        path = pandas.read_csv(PATH_PATH,',')
-        path_array = path.as_matrix()
-        path_array = path_array[:, :6]
+        global PATHS_PATH
+        path_array = []
+        for path_path in PATHS_PATH:
+            path = pandas.read_csv(path_path, ',')
+            path = path.as_matrix()
+            path_array.append(np.array(path[:, :6]))
         return path_array
 
     def _self_observe(self):
         global VEHICLE_NAME
+        X_AXIS_POS = 0
+        Y_AXIS_POS = 1
+        Z_AXIS_POS = 2
+        X_AXIS_ANGLE = 3
+        Y_AXIS_ANGLE = 4
+        Z_AXIS_ANGLE = 5
 
         # observe
-        car_pos = np.array(self.car.get_position())
+        self.car_pos = np.array(self.car.get_position())
         car_angle = self.car.get_orientation()[2]
         # print('Car_angle: {}'.format(car_angle))
 
         end_pos = np.array(self.end_point.get_position())
 
-        self.dist_to_target = np.linalg.norm(end_pos - car_pos)
+        self.dist_to_target = np.linalg.norm(end_pos - self.car_pos)
 
-        self.cross_track_err, closest_point_index = helpers.get_dist_to_path(car_pos, self.path[:, :3])
+        self.cross_track_err, closest_point_index = helpers.get_dist_to_path(self.car_pos, self.path[:, :3])
 
-        self.path_progress = float(closest_point_index)/self.n_path_elements
+        self.path_progress = float(closest_point_index)/self.n_path_elements[self.current_path]
 
+        # print("path pos: ")
+        # print(self.path[closest_point_index,:3])
 
         # Give crosstrack error the right sign, pos if right, neg if left
-        vector_path_to_car = np.array(car_pos) - np.array(self.path[closest_point_index, :3])
+        vector_path_to_car = np.array(self.car_pos) - np.array(self.path[closest_point_index, :3])
 
         if closest_point_index == 0:
             vector_path_direction = np.array(self.path[closest_point_index + 1, :3]) - \
@@ -102,11 +130,11 @@ class PathFollowEnv(gym.Env):
         if cross_prod[2] > 0:
             self.cross_track_err *= -1
 
-        # print('path_angle: {}'.format(self.path[closest_point_index, 5]))
-
         # angle difference between path direction and car
-        self.diff_angle = helpers.get_angle_diff(np.deg2rad(self.path[closest_point_index, 5]), car_angle)
-
+        path_angle = helpers.vectorAngle(vector_path_direction[:2])
+        self.diff_angle = helpers.get_angle_diff(np.deg2rad(path_angle), car_angle)
+        # print("car angle: {}, path angle: {}, diff angle: {}".format(car_angle,
+        #                                                              np.deg2rad(path_angle), self.diff_angle))
         if VEHICLE_NAME == "Pioneer_p3dx":
             _, r_wheel_vel = self.r_wheel.get_velocity()
             r_wheel_vel = r_wheel_vel[2]
@@ -150,6 +178,7 @@ class PathFollowEnv(gym.Env):
 
     def _step(self,actions):
         global VEHICLE_NAME
+        self.agent_positions.append(self.car_pos)
         self.step_count += 1
         actions = np.clip(actions, -1, 1)
 
@@ -199,7 +228,27 @@ class PathFollowEnv(gym.Env):
         self.venv.start_blocking_simulation()
         self._self_observe()
         self.step_count = 0
+        self.set_random_init_position()
+        self.agent_positions = []
+        self.current_path = np.random.randint(0, self.n_paths)
+        self.path = self.paths[self.current_path]
         return self.observation
+
+    def set_random_init_position(self):
+        rand_pos = np.append(np.random.randint(-5,5,1), [0,0.2])
+        rand_ori = np.array([0,0,0]) # np.append([0,0],np.random.randint(-45,45,1))
+
+        first_path_pos = self.paths[0][0,:3]
+        first_path_ori = self.paths[0][0,3:6]
+
+        init_pos = rand_pos + first_path_pos
+        init_ori = rand_ori + [0, 0, -180]
+
+
+        self.veichle_object.set_position(init_pos)
+        self.veichle_object.set_orientation(init_ori)
+        a = 2
+
 
     def _destroy(self):
         self.venv.stop_blocking_simulation()
@@ -209,14 +258,14 @@ class PathFollowEnv(gym.Env):
         temp_done = False
         if self.step_count >= self._max_episode_steps:
             temp_done = True
-        REWARD_SLACK_DIST = 0.5
+        REWARD_SLACK_DIST = 5
         if -REWARD_SLACK_DIST <= self.cross_track_err <= REWARD_SLACK_DIST:
             if -pi/2 <= self.diff_angle <= pi/2:
-                if self.path_progress >= 0.96:
-                    temp_reward = 10
-                    temp_done = True
-                else:
-                    temp_reward = self.path_progress
+            # if self.path_progress >= 0.96:
+            #     temp_reward = 10
+            #     temp_done = True
+            # else:
+                temp_reward = helpers.gaussian(self.cross_track_err, 0, 1)
 
         return temp_reward, temp_done
 
@@ -238,3 +287,4 @@ if __name__ == '__main__':
         print("end of episode")
     print('simulation ended. leaving in 5 seconds...')
     time.sleep(5)
+

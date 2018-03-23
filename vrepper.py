@@ -375,6 +375,21 @@ class vrepobject():
             blocking))
         return position
 
+    def set_position(self, pos):
+        return check_ret(self.env.simxSetObjectPosition(
+            self.handle,
+            -1,
+            pos,
+            blocking))
+    def set_orientation(self, orientation):
+        return check_ret(self.env.simxSetObjectOrientation(
+            self.handle,
+            -1,
+            orientation,
+            blocking
+        ))
+
+
     def get_velocity(self):
         return check_ret(self.env.simxGetObjectVelocity(
             self.handle,

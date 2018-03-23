@@ -1,2 +1,2 @@
-model_checkpoint_path: "nav_model_16_02.ckpt"
-all_model_checkpoint_paths: "nav_model_16_02.ckpt"
+model_checkpoint_path: "nav_model_08_03_1520519677.ckpt"
+all_model_checkpoint_paths: "nav_model_08_03_1520519677.ckpt"

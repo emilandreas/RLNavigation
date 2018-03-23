@@ -17,32 +17,48 @@ import numpy as np
 import gym
 import os
 import shutil
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import time
+from datetime import datetime
 from PathFollowEnv import PathFollowEnv
+
 import FalconLander
 
+def create_folder():
+    folder_path = r'./logging/{}/{}'.format(SESSION_NAME, datetime.now().strftime('%m-%d_%H_%M'))
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    return folder_path
 
 # GAME = 'Pendulum-v0'
 # GAME = 'LunarLanderContinuous-v2'
 # GAME = 'FalconLanderContinuous-v0'
+SESSION_NAME = "Race_track_3000_steps"
+LOG_SAVE_PATH = create_folder()
+print(LOG_SAVE_PATH)
 GAME = 'PathFollow'
 OUTPUT_GRAPH = True
 LOG_DIR = './log'
 N_WORKERS = 3 # multiprocessing.cpu_count()
-MAX_EP_STEP = 300
-MAX_GLOBAL_EP = 4000
+MAX_EP_STEP = 3000
+MAX_GLOBAL_EP = 10000
 GLOBAL_NET_SCOPE = 'Global_Net'
-UPDATE_GLOBAL_ITER = 10
+UPDATE_GLOBAL_ITER = 100
 GAMMA = 0.95
-ENTROPY_BETA = 0.01
-# ENTROPY_BETA = 0.1
+# ENTROPY_BETA = 0.01
+ENTROPY_BETA = 0
+# LR_A = 0.0001    # learning rate for actor
+# LR_C = 0.001    # learning rate for critic
 LR_A = 0.0001    # learning rate for actor
 LR_C = 0.001    # learning rate for critic
 GLOBAL_RUNNING_R = []
 GLOBAL_EP = 0
 RENDER = False
 USE_XBOX = False
+RESTORE_WEIGHTS_PATH =  "logging/multipath_training_gaussian_200_100/03-22_20_11/nav_model_23_03.ckpt"
+# RESTORE_WEIGHTS_PATH = ""
 
 
 if GAME == "PathFollow":
@@ -104,13 +120,13 @@ class ACNet(object):
         w_init = tf.random_normal_initializer(0., .1)
         with tf.variable_scope('actor'):
             l_a = tf.layers.dense(self.s, 400, tf.nn.relu6, kernel_initializer=w_init, name='la')
-            l_a = tf.layers.dropout(l_a, rate=0.5)
+            # l_a = tf.layers.dropout(l_a, rate=0.2)
             l_a = tf.layers.dense(l_a, 400, tf.nn.relu6, kernel_initializer=w_init, name='la2')
             mu = tf.layers.dense(l_a, N_A, tf.nn.tanh, kernel_initializer=w_init, name='mu')
             sigma = tf.layers.dense(l_a, N_A, tf.nn.softplus, kernel_initializer=w_init, name='sigma')
         with tf.variable_scope('critic'):
             l_c = tf.layers.dense(self.s, 200, tf.nn.relu6, kernel_initializer=w_init, name='lc')
-            l_c = tf.layers.dropout(l_c, rate=0.5)
+            # l_c = tf.layers.dropout(l_c, rate=0.2)
             l_c = tf.layers.dense(l_c, 200, tf.nn.relu6, kernel_initializer=w_init, name='lc2')
             v = tf.layers.dense(l_c, 1, kernel_initializer=w_init, name='v')  # state value
         a_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope + '/actor')
@@ -137,6 +153,8 @@ class Worker(object):
             self.env = gym.make(GAME).unwrapped
         self.env._max_episode_steps = MAX_EP_STEP
         self.name = name
+
+
         self.AC = ACNet(name, globalAC)
 
     def work(self):
@@ -159,7 +177,8 @@ class Worker(object):
                 ep_r += r
                 buffer_s.append(s)
                 buffer_a.append(a)
-                buffer_r.append((r+8)/8)    # normalize
+                #buffer_r.append((r+8)/8)    # normalize
+                buffer_r.append(r)
 
                 if total_step % UPDATE_GLOBAL_ITER == 0 or done:   # update global and assign to local net
                     if done:
@@ -198,10 +217,34 @@ class Worker(object):
                         "| Ep_r: %i" % GLOBAL_RUNNING_R[-1],
                           )
                     GLOBAL_EP += 1
+                    if self.name == 'W_0':
+                        self.save_performance()
                     break
+    def save_performance(self):
+        plt.figure()
+        agent_pos = np.array(self.env.agent_positions)
+        plt.plot(self.env.path[:,0], self.env.path[:,1], label="Path")
+        plt.plot(agent_pos[1:, 0], agent_pos[1:, 1],'--r', label="Car position")
+        plt.axis("equal")
+        plt.grid()
+        plt.xlabel('[m]')
+        plt.ylabel('[m]')
+        plt.legend(loc='upper right')
+        plt.savefig(LOG_SAVE_PATH + '/{}.png'.format(time.clock()))
+        plt.close()
+        #plt.show()
+
+    # def _create_folder(self):
+    #     folder_path = r'./plots/{}/{}'.format(SESSION_NAME, datetime.now().strftime('%m-%d_%H_%M'))
+    #     if not os.path.exists(folder_path):
+    #         os.makedirs(folder_path)
+    #     return folder_path
+
+
 
 if __name__ == "__main__":
     SESS = tf.Session()
+
 
     with tf.device("/cpu:0"):
         # OPT_A = tf.train.RMSPropOptimizer(LR_A, name='RMSPropA')
@@ -218,6 +261,8 @@ if __name__ == "__main__":
     COORD = tf.train.Coordinator()
     SESS.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
+    if RESTORE_WEIGHTS_PATH:
+        saver.restore(SESS, RESTORE_WEIGHTS_PATH)
 
     if OUTPUT_GRAPH:
         if os.path.exists(LOG_DIR):
@@ -231,15 +276,19 @@ if __name__ == "__main__":
             t = threading.Thread(target=job)
             t.start()
             worker_threads.append(t)
-        COORD.join(worker_threads)
     except KeyboardInterrupt:
         pass
 
-    save_path = saver.save(SESS, "./models/nav_model_{}.ckpt".format(time.strftime("%d_%m")))
+    COORD.join(worker_threads)
+    save_path = saver.save(SESS, LOG_SAVE_PATH + "/nav_model_{}.ckpt".format(time.strftime("%d_%m")))
     print("Model saved in file: %s" % save_path)
-
+    plt.ioff()
+    plt.figure()
     plt.plot(np.arange(len(GLOBAL_RUNNING_R)), GLOBAL_RUNNING_R)
     plt.xlabel('step')
     plt.ylabel('Total moving reward')
-    plt.show()
+    plt.savefig(LOG_SAVE_PATH + r'/reward_plot')
+    plt.close()
+    np.save(LOG_SAVE_PATH + r'/score_array', GLOBAL_RUNNING_R)
+    # plt.show()
 
